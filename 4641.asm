@@ -10,6 +10,7 @@ Result:	dw 0		; blanco place to store HL for testing
 Start:
 width	equ 6		; width in bytes
 height	equ 24		; height in lines
+delay	equ 2		; delay to slow down animation
 
 	ld b,5
 	ld c,100		; set x and y
@@ -17,24 +18,50 @@ height	equ 24		; height in lines
 ; test code commented out or BC gets clobbered here and everything is offset
 ;	call GetScreenPos
 ;	ld (result),hl		; get screen address and store in test area
-	
+
+	ld ixl,5
+ 
+
+
+Loop3:	
+		
 Loop1:	
 	push bc			; save coordinates
+	
 	ld de, Sprite1		; get the address of the smiley
+	call WaitVs
 	call PutSprite		; put sprite to screen and RET at end of this
+	ld b, delay
+Dloop:	djnz Dloop
 	pop bc
 	inc b
-	ld a,75
+	ld a,70
 	cp b
 	jr nz,Loop1
 Loop2:				; now do the same backwards
 	push bc
+	
 	ld de, Sprite1
+	call WaitVs
 	call PutSprite
-	pop bc
-	dec b
+	ld b, delay
+Dloop2:	djnz Dloop2
+	pop bc	
+	dec b	
+	jr nz, Loop2
+
+	dec ixl
 	ret z
-	jr Loop2
+	jr Loop3
+
+; wait for a vsync to avoid flicker
+
+WaitVs:	
+	ld a, &F5
+	in a, (&DB)	; bit 0 is vsync
+	rra		; roll it right into the carry
+	jr nc, WaitVs
+	ret
 
 GetScreenPos:
 	; B = x coordinate (bytes) C = y coordinate (lines)
@@ -74,12 +101,22 @@ PutSprite:
 DoLine:
 	push hl			; or HL will be offset by next bit of code
 	ex hl,de		; now DE is screen address and HL is sprite index
+; clear trail at left 
+; (NB cursed code, this will corrupt memory just before the framebuffer if BC=0)
+	dec de			; go back one byte
+	xor a
+	ld (de),a
+	inc de			; put de back to where it should be
+
 	ldi
 	ldi
 	ldi
 	ldi
 	ldi
 	ldi			; do all 6 bytes
+; clear the trail
+	xor a			; zero accumulator
+	ld (de),a		; put the zero to the framebuffer 
 	ex hl,de		; HL is screen address and DE is sprite index
 	pop hl			; get original screen address
 	call GetNextLine
